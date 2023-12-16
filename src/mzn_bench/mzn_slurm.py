@@ -109,11 +109,8 @@ def schedule(
     nodelist: Optional[Iterable[str]] = None,
     output_dir: Path = Path.cwd() / "results",
     job_name: str = "MiniZinc Benchmark",
-    cpus_per_task: int = 1,
-    memory: int = 4096,
     debug: bool = False,
-    nice: Optional[int] = None,
-    wait: bool = False,
+    sbatch_config: str = ""
 ) -> NoReturn:
     # Count number of instances
     assert instances.exists()
@@ -151,16 +148,10 @@ def schedule(
         "sbatch",
         f"--output={slurm_output}",
         f'--job-name="{job_name}"',
-        f"--cpus-per-task={cpus_per_task}",
-        f"--mem={memory}",
-        f"--nodelist={','.join(nodelist)}",
         f"--array=1-{n_tasks}",
         f"--time={timeout + timedelta(minutes=1)}",  # Set hard timeout as failsafe
+        sbatch_config
     ]
-    if nice is not None:
-        cmd.append(f"--nice={nice}")
-    if wait:
-        cmd.append(f"--wait")
     cmd.extend(
         [
             str(this_script.resolve()),
