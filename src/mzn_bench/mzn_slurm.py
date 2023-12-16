@@ -106,11 +106,10 @@ def schedule(
     instances: Path,
     timeout: timedelta,
     configurations: Iterable[Configuration],
-    nodelist: Optional[Iterable[str]] = None,
+    sbatch_config: str = "",
     output_dir: Path = Path.cwd() / "results",
     job_name: str = "MiniZinc Benchmark",
     debug: bool = False,
-    sbatch_config: str = ""
 ) -> NoReturn:
     # Count number of instances
     assert instances.exists()
@@ -138,7 +137,7 @@ def schedule(
     instances = str(instances.resolve())
     output_dir = str(output_dir.resolve())
 
-    if nodelist is None:
+    if sbatch_config == "":
         os.environ.update(env)
         for i in range(n_tasks):  # simulate environment like SLURM
             os.environ["SLURM_ARRAY_TASK_ID"] = str(i + 1)
@@ -149,16 +148,18 @@ def schedule(
         f"--output={slurm_output}",
         f'--job-name="{job_name}"',
         f"--array=1-{n_tasks}",
-        f"--time={timeout + timedelta(minutes=1)}",  # Set hard timeout as failsafe
-        sbatch_config
+        f"--time={timeout + timedelta(minutes=1)}"  # Set hard timeout as failsafe
     ]
     cmd.extend(
         [
+            str(sbatch_config_script),
             str(this_script.resolve()),
             str(instances),
             str(output_dir),
         ]
     )
+
+    print(cmd)
 
     # Replace current process with the correct sbatch call
     os.execvpe(
