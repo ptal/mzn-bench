@@ -134,6 +134,7 @@ def schedule(
         env["MZN_DEBUG"] = "ON"
 
     n_tasks = num_instances * len(configurations)
+    n_tasks = n_tasks // 4 + n_tasks % 4;
     instances = str(instances.resolve())
     output_dir = str(output_dir.resolve())
 
@@ -141,7 +142,8 @@ def schedule(
         os.environ.update(env)
         for i in range(n_tasks):  # simulate environment like SLURM
             os.environ["SLURM_ARRAY_TASK_ID"] = str(i + 1)
-            main(Path(instances), Path(output_dir))
+            for j in range(5):
+                main(Path(instances), Path(output_dir), j)
         return
     cmd = [
         "sbatch",
@@ -152,7 +154,7 @@ def schedule(
     ]
     cmd.extend(
         [
-            str(sbatch_config_script),
+            str(sbatch_config),
             str(this_script.resolve()),
             str(instances),
             str(output_dir),
@@ -238,23 +240,30 @@ async def run_instance(
         yaml.dump(statistics, file)
 
 
-def main(instances, output_dir):
+def main(instances, output_dir, task_num):
     filename = "minizinc_slurm"
     try:
-        task_id = int(os.environ["SLURM_ARRAY_TASK_ID"]) - 1
+        task_group = int(os.environ["SLURM_ARRAY_TASK_ID"]) - 1
+        task_id = task_group * 4 + int(task_num)
         timeout = timedelta(milliseconds=int(os.environ["MZN_SLURM_TIMEOUT"]))
         configurations = json.loads(os.environ["MZN_SLURM_CONFIGS"], cls=_JSONDec)
 
+        task_id_orig = task_id
+        print(f"processing {task_id}")
         # Select instance and configuration based on SLURM_ARRAY_TASK_ID
-        with open(instances) as instances_file:
-            reader = csv.reader(instances_file, dialect="unix")
-            next(reader)  # Skip the header line
-            row = 1
-            while task_id >= len(configurations):
-                next(reader)  # Skip non-selected instances
-                task_id = task_id - len(configurations)
-                row = row + 1
-            selected_instance = next(reader)
+        try:
+            with open(instances) as instances_file:
+                reader = csv.reader(instances_file, dialect="unix")
+                next(reader)  # Skip the header line
+                row = 1
+                while task_id >= len(configurations):
+                    next(reader)  # Skip non-selected instances
+                    task_id = task_id - len(configurations)
+                    row = row + 1
+                selected_instance = next(reader)
+        except StopIteration:
+            print(f"skipping {task_id_orig}")
+            return
 
         # Deserialise Configuration
         config = configurations[task_id]
@@ -312,5 +321,6 @@ def main(instances, output_dir):
 
 if __name__ == "__main__":
     instances = Path(sys.argv[1])
-    output_dir = Path(sys.argv[2]) if len(sys.argv) == 3 else Path.home()
-    main(instances, output_dir)
+    output_dir = Path(sys.argv[2]) if len(sys.argv) == 4 else Path.home()
+    task_num = int(sys.argv[-1])
+    main(instances, output_dir, task_num)
