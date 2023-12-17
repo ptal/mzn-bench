@@ -134,7 +134,7 @@ def schedule(
         env["MZN_DEBUG"] = "ON"
 
     n_tasks = num_instances * len(configurations)
-    n_tasks = n_tasks // 4 + n_tasks % 4;
+    n_tasks = n_tasks // 4 + (n_tasks % 4 != 0);
     instances = str(instances.resolve())
     output_dir = str(output_dir.resolve())
 
